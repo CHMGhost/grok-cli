@@ -30,7 +30,7 @@ export class GrokAPI {
     return this.config;
   }
 
-  async sendMessage(messages: ChatMessage[]): Promise<string> {
+  async sendMessage(messages: ChatMessage[], retries: number = 3): Promise<string> {
     const config = await this.ensureConfig();
     
     const apiUrl = config.apiUrl || 'https://api.x.ai/v1/chat/completions';
@@ -42,13 +42,13 @@ export class GrokAPI {
     this.currentRequest = new AbortController();
     const signal = this.currentRequest.signal;
     
-    // Set a timeout of 60 seconds (increased from 30)
+    // Set a timeout of 120 seconds for network issues
     const timeoutId = setTimeout(() => {
       if (this.currentRequest) {
-        console.error('Request timed out after 60 seconds');
+        console.error('Request timed out after 120 seconds');
         this.currentRequest.abort();
       }
-    }, 60000);
+    }, 120000);
     
     try {
       const response = await fetch(apiUrl, {
@@ -77,11 +77,34 @@ export class GrokAPI {
       return data.choices[0].message.content;
     } catch (error) {
       clearTimeout(timeoutId);
+      
       if (error instanceof Error) {
+        // Handle network timeouts with retry
+        if (error.message.includes('ETIMEDOUT') || error.message.includes('ECONNRESET')) {
+          if (retries > 0) {
+            console.log(`Network timeout, retrying... (${retries} attempts left)`);
+            this.currentRequest = null;
+            // Wait a bit before retry
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return this.sendMessage(messages, retries - 1);
+          }
+        }
+        
         if (error.name === 'AbortError') {
           throw new Error('Request timed out or was cancelled');
         }
+        
         console.error('Grok API error:', error.message);
+        
+        // Provide more helpful error messages
+        if (error.message.includes('ETIMEDOUT')) {
+          throw new Error('Network timeout - Grok API is not responding. Please check your internet connection.');
+        } else if (error.message.includes('ECONNREFUSED')) {
+          throw new Error('Cannot connect to Grok API. Please check if the API is available.');
+        } else if (error.message.includes('401')) {
+          throw new Error('Invalid API key. Please run "grok config" to update your API key.');
+        }
+        
         throw new Error(`Failed to communicate with Grok: ${error.message}`);
       }
       throw error;
@@ -125,7 +148,20 @@ export class GrokAPI {
 
 Current working directory: ${process.cwd()}
 
-IMPORTANT: When file content is provided in the context below, you MUST use that exact content in your response. Do not make up or guess file contents. If a file's full content is shown, use it verbatim. The context provided is from the actual indexed files.`
+IMPORTANT: When file content is provided in the context below, you MUST use that exact content in your response. Do not make up or guess file contents.
+
+When the user asks for code changes or improvements:
+1. Analyze the code and provide specific suggestions
+2. If asked to make changes, format your response with clear file paths and modifications
+3. Be specific about what lines or sections to change
+4. Explain why each change improves the code
+
+For UX improvements, consider:
+- Error handling and user feedback
+- Command response times
+- Clear and helpful messages
+- Intuitive command structure
+- Progress indicators for long operations`
       }
     ];
 

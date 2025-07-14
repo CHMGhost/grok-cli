@@ -1,7 +1,19 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 type VersionBump = 'major' | 'minor' | 'patch';
+
+// Get default version from package.json
+const DEFAULT_VERSION = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
+    return pkg.version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+})();
 
 export interface VersionFile {
   path: string;
@@ -57,7 +69,7 @@ export class VersionManager {
     }
     
     if (!this.versionFile) {
-      return '1.0.0'; // Default if no version file found
+      return DEFAULT_VERSION; // Default if no version file found
     }
     
     try {
@@ -66,27 +78,27 @@ export class VersionManager {
       switch (this.versionFile.type) {
         case 'json': {
           const data = JSON.parse(content);
-          return this.getNestedValue(data, this.versionFile.versionKey as string) || '1.0.0';
+          return this.getNestedValue(data, this.versionFile.versionKey as string) || DEFAULT_VERSION;
         }
         case 'toml': {
           // Simple TOML parsing for version
           const versionMatch = content.match(/version\s*=\s*['"]([^'"]+)['"]/m);
-          return versionMatch ? versionMatch[1] : '1.0.0';
+          return versionMatch ? versionMatch[1] : DEFAULT_VERSION;
         }
         case 'yaml': {
           // Simple YAML parsing for version
           const versionMatch = content.match(/version:\s*['"]?([\d\.]+)['"]?/m);
-          return versionMatch ? versionMatch[1] : '1.0.0';
+          return versionMatch ? versionMatch[1] : DEFAULT_VERSION;
         }
         case 'text': {
           if (this.versionFile.versionPattern) {
             const match = content.match(this.versionFile.versionPattern);
-            return match ? match[1] : '1.0.0';
+            return match ? match[1] : DEFAULT_VERSION;
           }
-          return content.trim() || '1.0.0';
+          return content.trim() || DEFAULT_VERSION;
         }
         default:
-          return '1.0.0';
+          return DEFAULT_VERSION;
       }
     } catch {
       return '1.0.0';

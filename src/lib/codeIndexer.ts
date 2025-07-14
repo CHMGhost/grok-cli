@@ -319,7 +319,7 @@ export class CodeIndexer {
     return output;
   }
 
-  async getCodeContext(query: string, maxFiles: number = 3): Promise<string> {
+  async getCodeContext(query: string, maxFiles: number = 5, maxContextLength: number = 10000): Promise<string> {
     // First check if the query is asking about a specific file
     const filePatterns = [
       /(?:what['']?s in|show me|display|read)\s+(?:the\s+)?([^\s?]+\.[a-zA-Z]+)/i,
@@ -344,6 +344,21 @@ export class CodeIndexer {
       }
     }
     
+    // Check if asking about .grok files (stored in memory)
+    if (query.includes('.grok')) {
+      // Extract filename
+      const match = query.match(/([\w.-]+)\.grok/i);
+      if (match) {
+        const originalName = match[1];
+        // Look for the original file
+        for (const [relativePath, file] of this.indexedFiles) {
+          if (relativePath.endsWith(originalName) || relativePath === originalName) {
+            return `File: ${relativePath} (stored as ${relativePath}.grok in .grok-memory)\nFull content:\n\`\`\`${file.language}\n${file.content}\n\`\`\`\n`;
+          }
+        }
+      }
+    }
+    
     for (const pattern of filePatterns) {
       const match = query.match(pattern);
       if (match) {
@@ -357,6 +372,14 @@ export class CodeIndexer {
       }
     }
     
+    // For general analysis queries, provide a project overview instead of all files
+    if (query.toLowerCase().includes('analysis') || 
+        query.toLowerCase().includes('improve') ||
+        query.toLowerCase().includes('ux') ||
+        query.toLowerCase().includes('codebase')) {
+      return this.getProjectOverview(maxContextLength);
+    }
+    
     // Otherwise do regular search
     const searchResults = await this.searchCode(query, { maxResults: maxFiles });
     
@@ -365,17 +388,29 @@ export class CodeIndexer {
     }
 
     let context = 'Relevant code from the project:\n\n';
+    let currentLength = context.length;
     
     for (const result of searchResults) {
-      context += `File: ${result.file.relativePath}\n`;
-      context += `Language: ${result.file.language}\n`;
+      const fileHeader = `File: ${result.file.relativePath}\nLanguage: ${result.file.language}\n`;
+      
+      // Check if adding this would exceed max length
+      if (currentLength + fileHeader.length + 500 > maxContextLength) {
+        break;
+      }
+      
+      context += fileHeader;
       context += 'Matches:\n';
       
       result.matches.slice(0, 3).forEach(match => {
-        context += `  Line ${match.line}: ${match.content}\n`;
+        const matchLine = `  Line ${match.line}: ${match.content}\n`;
+        if (currentLength + matchLine.length < maxContextLength) {
+          context += matchLine;
+          currentLength += matchLine.length;
+        }
       });
       
       context += '\n';
+      currentLength = context.length;
     }
 
     return context;
@@ -573,5 +608,62 @@ export class CodeIndexer {
     }
 
     return repairLog;
+  }
+
+  private getProjectOverview(maxLength: number = 10000): string {
+    const files = this.getIndexedFiles();
+    
+    // Group files by type
+    const filesByType: Record<string, string[]> = {};
+    files.forEach(f => {
+      const ext = path.extname(f.relativePath);
+      if (!filesByType[ext]) filesByType[ext] = [];
+      filesByType[ext].push(f.relativePath);
+    });
+    
+    // Build overview
+    let overview = `Project Overview:\n\n`;
+    overview += `Total files: ${files.length}\n\n`;
+    
+    // File type summary
+    overview += `File types:\n`;
+    Object.entries(filesByType)
+      .sort((a, b) => b[1].length - a[1].length)
+      .slice(0, 10)
+      .forEach(([ext, files]) => {
+        overview += `  ${ext}: ${files.length} files\n`;
+      });
+    
+    overview += `\nKey files:\n`;
+    
+    // Add important files
+    const importantFiles = [
+      'package.json',
+      'README.md',
+      'src/index.ts',
+      'src/lib/interactive.ts',
+      'src/lib/commandHandler.ts'
+    ];
+    
+    for (const fileName of importantFiles) {
+      const file = files.find(f => f.relativePath === fileName);
+      if (file && overview.length + file.content.length < maxLength) {
+        overview += `\n### ${fileName}\n\`\`\`${file.language}\n`;
+        // Add first 50 lines or until max length
+        const lines = file.content.split('\n').slice(0, 50);
+        for (const line of lines) {
+          if (overview.length + line.length + 10 > maxLength) break;
+          overview += line + '\n';
+        }
+        overview += `\`\`\`\n`;
+      }
+    }
+    
+    // Add project structure
+    if (overview.length < maxLength - 1000) {
+      overview += `\nProject Structure:\n${this.getProjectStructure()}`;
+    }
+    
+    return overview;
   }
 }

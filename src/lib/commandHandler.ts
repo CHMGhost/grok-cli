@@ -4,6 +4,7 @@ import { GrokAPI } from './grokApi';
 import { CodeIndexer } from './codeIndexer';
 import { FileWatcher } from './fileWatcher';
 import { projectDetectors, detectNodeFramework } from './languageConfig';
+import { CodeModifier } from './codeModifier';
 import chalk from 'chalk';
 import path from 'path';
 
@@ -11,6 +12,7 @@ const knowledgeBase = new KnowledgeBase();
 let codeIndexer: CodeIndexer | null = null;
 let grokApi: GrokAPI | null = null;
 let fileWatcher: FileWatcher | null = null;
+let codeModifier: CodeModifier | null = null;
 
 async function getCodeIndexer(): Promise<CodeIndexer> {
   if (!codeIndexer) {
@@ -33,6 +35,13 @@ export async function getFileWatcher(): Promise<FileWatcher> {
     fileWatcher = new FileWatcher(indexer);
   }
   return fileWatcher;
+}
+
+function getCodeModifier(): CodeModifier {
+  if (!codeModifier) {
+    codeModifier = new CodeModifier();
+  }
+  return codeModifier;
 }
 
 const commands: Command[] = [
@@ -142,6 +151,7 @@ const commands: Command[] = [
       output += '- **/memory** - Show what\'s stored in Grok\'s memory\n';
       output += '- **/verify** - Verify index consistency\n';
       output += '- **/repair** - Repair index inconsistencies\n';
+      output += '- **/test** - Test Grok API connection\n';
       output += '- **/pwd** - Show current working directory\n';
       output += '- **/clear** - Clear terminal\n';
       output += '- **/exit** - Exit chat\n\n';
@@ -414,6 +424,23 @@ const commands: Command[] = [
       const repairLog = await indexer.repairIndex();
       return repairLog;
     }
+  },
+  {
+    name: 'test',
+    description: 'Test Grok API connection',
+    pattern: /^\/test$/,
+    handler: async () => {
+      try {
+        const api = getGrokApi();
+        const response = await api.askQuestion('Hello, are you working?');
+        return chalk.green('✓ Grok API is working!\n') + response;
+      } catch (error) {
+        if (error instanceof Error) {
+          return chalk.red(`✗ API Test Failed: ${error.message}`);
+        }
+        return chalk.red('✗ API Test Failed: Unknown error');
+      }
+    }
   }
 ];
 
@@ -431,11 +458,6 @@ export async function handleCommand(input: string, conversationHistory?: ChatMes
   // Get context from both knowledge base and codebase
   const knowledgeContext = await knowledgeBase.getContext(input);
   const indexer = await getCodeIndexer();
-  
-  // Debug: Check if indexer has files
-  const indexedFiles = indexer.getIndexedFiles();
-  console.log(chalk.dim(`Debug: ${indexedFiles.length} files indexed`));
-  
   const codeContext = await indexer.getCodeContext(input);
   
   let combinedContext = '';

@@ -7,15 +7,22 @@ import { config } from 'dotenv';
 import { startInteractiveMode } from './lib/interactive';
 import { handleCommand } from './lib/commandHandler';
 import { initializeConfig } from './lib/config';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 config();
+
+// Read version from package.json
+const packageJson = JSON.parse(
+  readFileSync(join(__dirname, '..', 'package.json'), 'utf-8')
+);
 
 const program = new Command();
 
 program
   .name('grok')
   .description('A code assistant CLI powered by Grok AI')
-  .version('1.0.0');
+  .version(packageJson.version);
 
 program
   .command('chat')

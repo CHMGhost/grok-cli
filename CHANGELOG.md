@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.1] - 2024-07-13
+
+### Added
+- Retry logic for network timeouts (3 retries with 2s delay)
+- `/test` command to check API connectivity
+- Better error messages for network issues
+- Support for .grok file queries
+
+### Fixed
+- ETIMEDOUT network errors with automatic retry
+- Increased timeout to 120 seconds for slow connections
+- Improved file detection for stored .grok files
+
+### Changed
+- More descriptive error messages for connection issues
+
+## [1.10.0] - 2024-07-13
+
+### Added
+- Smart context selection for large codebases to prevent timeouts
+- Project overview generation for analysis queries
+- Code modification capabilities framework
+- Improved prompts for UX and code improvement suggestions
+
+### Fixed
+- Timeout issues with large codebases (95+ files)
+- Context length limits to stay within API constraints
+
+### Changed
+- Analysis queries now provide focused project overviews instead of all files
+- Maximum context length limited to 10KB by default
+
+## [1.9.3] - 2024-07-13
+
+### Fixed
+- Dynamic version reading from package.json instead of hardcoded "1.0.0"
+- Version manager now uses dynamic default version
+- Fixed version display in CLI
+
+## [1.9.2] - 2024-07-13
+
+### Fixed
+- Increased API timeout from 30s to 60s
+- Improved README query detection
+- Added debug logging for troubleshooting
+
 ## [1.8.2] - 2024-07-13
 
 ### Added
