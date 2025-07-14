@@ -1,6 +1,6 @@
 {
   "name": "@chmgh0st/grok-cli",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "A code assistant CLI for Grok with markdown-based knowledge storage",
   "main": "dist/index.js",
   "bin": {
