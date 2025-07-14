@@ -431,6 +431,11 @@ export async function handleCommand(input: string, conversationHistory?: ChatMes
   // Get context from both knowledge base and codebase
   const knowledgeContext = await knowledgeBase.getContext(input);
   const indexer = await getCodeIndexer();
+  
+  // Debug: Check if indexer has files
+  const indexedFiles = indexer.getIndexedFiles();
+  console.log(chalk.dim(`Debug: ${indexedFiles.length} files indexed`));
+  
   const codeContext = await indexer.getCodeContext(input);
   
   let combinedContext = '';

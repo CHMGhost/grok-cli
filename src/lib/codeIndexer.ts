@@ -336,6 +336,14 @@ export class CodeIndexer {
       }
     }
     
+    // Check for README queries
+    if (query.toLowerCase().includes('readme')) {
+      const readme = this.indexedFiles.get('README.md');
+      if (readme) {
+        return `File: README.md\nFull content:\n\`\`\`markdown\n${readme.content}\n\`\`\`\n`;
+      }
+    }
+    
     for (const pattern of filePatterns) {
       const match = query.match(pattern);
       if (match) {

@@ -42,12 +42,13 @@ export class GrokAPI {
     this.currentRequest = new AbortController();
     const signal = this.currentRequest.signal;
     
-    // Set a timeout of 30 seconds
+    // Set a timeout of 60 seconds (increased from 30)
     const timeoutId = setTimeout(() => {
       if (this.currentRequest) {
+        console.error('Request timed out after 60 seconds');
         this.currentRequest.abort();
       }
-    }, 30000);
+    }, 60000);
     
     try {
       const response = await fetch(apiUrl, {
@@ -78,8 +79,9 @@ export class GrokAPI {
       clearTimeout(timeoutId);
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          throw new Error('Request cancelled');
+          throw new Error('Request timed out or was cancelled');
         }
+        console.error('Grok API error:', error.message);
         throw new Error(`Failed to communicate with Grok: ${error.message}`);
       }
       throw error;
