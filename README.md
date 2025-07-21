@@ -1,6 +1,16 @@
 # Grok CLI
 
-A command-line interface for interacting with Grok AI, featuring markdown-based knowledge storage and custom commands.
+[![npm version](https://badge.fury.io/js/%40chmghost%2Fgrok-cli.svg)](https://www.npmjs.com/package/@chmghost/grok-cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A powerful command-line interface for interacting with Grok AI, featuring natural language file operations, markdown-based knowledge storage, and intelligent code assistance.
+
+## What's New in v1.13.9
+
+- 🆕 **Natural Language File Operations**: Simply describe what you want to change - no commands needed!
+- 🔧 **Fixed**: CLI no longer exits after file operations
+- 🚫 **Fixed**: Prevents errors when AI suggests non-existent files
+- 🛡️ **Improved**: Better validation and error handling
 
 ## Features
 
@@ -14,10 +24,27 @@ A command-line interface for interacting with Grok AI, featuring markdown-based 
 - 📡 Real-time file watching with auto-update
 - ⚡ Custom slash commands
 - 🎨 Colorful terminal interface
+- 🚀 AI-powered code generation and refactoring
+- 🧪 Automatic test generation
+- 🔧 Git integration with formatted output
+- 🐛 Advanced debugging assistance with error analysis
+- 📊 Performance profiling and optimization suggestions
+- 🦨 Code smell detection and quality analysis
+- ✨ Natural language file operations - no commands needed!
 
 ## Installation
 
+### Global Installation (Recommended)
+
 ```bash
+npm install -g @chmghost/grok-cli
+```
+
+### Development Installation
+
+```bash
+git clone https://github.com/CHMGhost/grok-cli.git
+cd grok-cli
 npm install
 npm run build
 npm link
@@ -53,10 +80,12 @@ cp .env.example .env
 
 ## Usage
 
-### Interactive Chat Mode
+### Interactive Chat Mode (Recommended)
 
 ```bash
 grok chat
+# or just:
+grok
 ```
 
 ### Single Question
@@ -64,6 +93,32 @@ grok chat
 ```bash
 grok ask "How do I implement a binary search?"
 ```
+
+### Natural Language File Operations
+
+In chat mode, you can use natural language to modify, create, or delete files:
+
+```bash
+# Modify files
+"Change the color scheme to dark theme in my CSS files"
+"Update the API endpoint in config.js to use the new server"
+"Remove the deprecated functions from utils.js"
+
+# Create files
+"Create a new React component called UserProfile"
+"Make a boilerplate HTML file in the root directory"
+"Generate a test file for my auth module"
+
+# Delete files (with safety confirmations)
+"Delete all the temp files"
+"Remove the old backup files"
+```
+
+Grok will:
+- Understand your intent automatically
+- Show you what changes will be made
+- Display diffs for modifications
+- Ask for confirmation before making any changes
 
 ## Commands
 
@@ -86,9 +141,96 @@ In chat mode, use these commands:
 - `/watch` - Start watching for file changes
 - `/unwatch` - Stop watching for file changes
 
+### Code Generation Commands
+- `/create <file> <description>` - Create new file with AI-generated code
+- `/generate <type> <description>` - Generate code (function/class/component/test)
+- `/test-gen <file>` - Generate tests for a file
+- `/refactor <file> <instruction>` - Refactor code with AI assistance
+- `/modify <prompt>` - Modify files based on natural language request
+
+### Git Commands
+- `/git status` - Show git status with color formatting
+- `/git diff [file]` - Show changes with syntax highlighting
+- `/git log [count]` - View commit history
+- `/git stash [save/pop/list]` - Manage stashes
+- `/commit "message" [files]` - Commit changes
+- `/branch [name]` - Create or list branches
+
+### Debugging Commands
+- `/debug-error <error>` - Analyze error messages and get fix suggestions
+- `/debug-stack <trace>` - Analyze stack traces to find root causes
+- `/profile <file>` - Get performance optimization suggestions
+- `/smells [file]` - Detect code smells and quality issues
+
 ### General Commands
 - `/clear` - Clear terminal
 - `/exit` - Exit chat
+
+## Code Generation Examples
+
+### Create a new component
+```bash
+/create src/components/Button.tsx "A reusable button component with primary and secondary variants"
+```
+
+### Generate a function
+```bash
+/generate function "A debounce utility function that delays execution"
+```
+
+### Generate tests for existing code
+```bash
+/test-gen src/utils/helpers.ts
+```
+
+### Refactor code
+```bash
+/refactor src/api/client.ts "Add retry logic with exponential backoff"
+```
+
+## Git Integration Examples
+
+### Check repository status
+```bash
+/git status
+```
+
+### Commit changes
+```bash
+/commit "feat: add user authentication" src/auth/*.ts
+```
+
+### Create a new branch
+```bash
+/branch feature/new-feature
+```
+
+## Debugging Examples
+
+### Analyze an error
+```bash
+/debug-error "TypeError: Cannot read property 'name' of undefined at UserProfile.render (app.js:42:15)"
+```
+
+### Analyze a stack trace
+```bash
+/debug-stack "Error: Connection timeout
+  at Socket.onTimeout (net.js:451:8)
+  at Socket.emit (events.js:315:20)
+  at Socket._onTimeout (net.js:478:8)
+  at listOnTimeout (internal/timers.js:549:17)"
+```
+
+### Profile performance
+```bash
+/profile src/utils/dataProcessor.ts
+```
+
+### Detect code smells
+```bash
+/smells  # Analyze entire codebase
+/smells src/components/Dashboard.tsx  # Analyze specific file
+```
 
 ## Knowledge Base
 

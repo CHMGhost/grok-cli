@@ -7,6 +7,13 @@ import { CodeIndexer } from './codeIndexer';
 import { renderMarkdown } from './markdownRenderer';
 import { GrokAPI } from './grokApi';
 
+// Export readline interface for external control
+let activeReadline: readline.Interface | null = null;
+
+export function getActiveReadline(): readline.Interface | null {
+  return activeReadline;
+}
+
 export async function startInteractiveMode(): Promise<void> {
   console.clear();
   console.log(chalk.bold.blue('🤖 Grok CLI - Interactive Mode'));
@@ -26,7 +33,7 @@ export async function startInteractiveMode(): Promise<void> {
   // Override default SIGINT behavior BEFORE creating readline
   process.removeAllListeners('SIGINT');
   
-  const rl = readline.createInterface({
+  const rl = activeReadline = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
     prompt: chalk.green('\n❯ '),
@@ -118,7 +125,7 @@ export async function startInteractiveMode(): Promise<void> {
     try {
       // Pass conversation context to the command handler
       const context = conversationManager.getRecentContext();
-      const response = await handleCommand(trimmedInput, context, grokApi);
+      let response = await handleCommand(trimmedInput, context, grokApi);
       
       // Clear the "Thinking..." message
       process.stdout.write('\r' + ' '.repeat(20) + '\r');
@@ -141,8 +148,33 @@ export async function startInteractiveMode(): Promise<void> {
         return;
       }
 
-      // Add to conversation history if it's a regular question
-      if (!trimmedInput.startsWith('/')) {
+      // Skip ignored inputs
+      if (response === '[[IGNORE_INPUT]]') {
+        console.log(chalk.dim('(Input ignored - single character confirmation)'));
+        return;
+      }
+
+      // Skip minimal success indicators (just show prompt again)
+      if (response === '✓') {
+        return;
+      }
+
+      // Skip empty or whitespace-only responses
+      if (!response || response.trim() === '') {
+        return;
+      }
+
+      // Check if this is a file operation error
+      const isFileOperationError = response.startsWith('[[FILE_OPERATION_ERROR]]');
+      
+      // Remove the error marker if present
+      if (isFileOperationError) {
+        response = response.replace('[[FILE_OPERATION_ERROR]]\n', '');
+      }
+      
+      
+      // Add to conversation history if it's a regular question and not a file operation error
+      if (!trimmedInput.startsWith('/') && !isFileOperationError) {
         conversationManager.addMessage({ role: 'user', content: trimmedInput });
         conversationManager.addMessage({ role: 'assistant', content: response });
         

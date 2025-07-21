@@ -5,6 +5,9 @@ import { CodeIndexer } from './codeIndexer';
 import { FileWatcher } from './fileWatcher';
 import { projectDetectors, detectNodeFramework } from './languageConfig';
 import { CodeModifier } from './codeModifier';
+import { CodeGenerator } from './codeGenerator';
+import { GitIntegration } from './gitIntegration';
+import { DebugAssistant } from './debugAssistant';
 import chalk from 'chalk';
 import path from 'path';
 
@@ -13,6 +16,9 @@ let codeIndexer: CodeIndexer | null = null;
 let grokApi: GrokAPI | null = null;
 let fileWatcher: FileWatcher | null = null;
 let codeModifier: CodeModifier | null = null;
+let codeGenerator: CodeGenerator | null = null;
+let gitIntegration: GitIntegration | null = null;
+let debugAssistant: DebugAssistant | null = null;
 
 async function getCodeIndexer(): Promise<CodeIndexer> {
   if (!codeIndexer) {
@@ -42,6 +48,29 @@ function getCodeModifier(): CodeModifier {
     codeModifier = new CodeModifier();
   }
   return codeModifier;
+}
+
+async function getCodeGenerator(): Promise<CodeGenerator> {
+  if (!codeGenerator) {
+    const indexer = await getCodeIndexer();
+    codeGenerator = new CodeGenerator(getGrokApi(), indexer);
+  }
+  return codeGenerator;
+}
+
+function getGitIntegration(): GitIntegration {
+  if (!gitIntegration) {
+    gitIntegration = new GitIntegration();
+  }
+  return gitIntegration;
+}
+
+async function getDebugAssistant(): Promise<DebugAssistant> {
+  if (!debugAssistant) {
+    const indexer = await getCodeIndexer();
+    debugAssistant = new DebugAssistant(getGrokApi(), indexer);
+  }
+  return debugAssistant;
 }
 
 const commands: Command[] = [
@@ -146,6 +175,27 @@ const commands: Command[] = [
       output += '- **/files** `[language]` - List files by programming language\n';
       output += '- **/watch** - Start watching for file changes\n';
       output += '- **/unwatch** - Stop watching for file changes\n\n';
+      
+      output += '## Code Generation\n';
+      output += '- **/create** `<file>` `<description>` - Create new file with AI-generated code\n';
+      output += '- **/generate** `<type>` `<description>` - Generate code (function/class/component/test)\n';
+      output += '- **/test-gen** `<file>` - Generate tests for a file\n';
+      output += '- **/refactor** `<file>` `<instruction>` - Refactor code with AI\n';
+      output += '- **/modify** `<prompt>` - Modify files based on natural language (shows diffs & asks confirmation)\n\n';
+      
+      output += '## Git Integration\n';
+      output += '- **/git status** - Show git status\n';
+      output += '- **/git diff** `[file]` - Show changes\n';
+      output += '- **/git log** `[count]` - Show commit history\n';
+      output += '- **/git stash** `[save/pop/list]` - Manage stashes\n';
+      output += '- **/commit** `"message"` `[files]` - Commit changes\n';
+      output += '- **/branch** `[name]` - Create or list branches\n\n';
+      
+      output += '## Debugging Assistance\n';
+      output += '- **/debug-error** `<error>` - Analyze error and suggest fixes\n';
+      output += '- **/debug-stack** `<trace>` - Analyze stack trace\n';
+      output += '- **/profile** `<file>` - Performance profiling suggestions\n';
+      output += '- **/smells** `[file]` - Detect code smells\n\n';
       
       output += '## System\n';
       output += '- **/memory** - Show what\'s stored in Grok\'s memory\n';
@@ -441,10 +491,230 @@ const commands: Command[] = [
         return chalk.red('✗ API Test Failed: Unknown error');
       }
     }
+  },
+  // Code generation commands
+  {
+    name: 'create',
+    description: 'Create a new file with generated code',
+    pattern: /^\/create\s+([^\s]+)\s+(.+)$/,
+    handler: async (args: string[]) => {
+      const [filePath, description] = args;
+      const generator = await getCodeGenerator();
+      
+      try {
+        const code = await generator.generate({
+          type: 'file',
+          description,
+          targetFile: filePath
+        });
+        
+        await generator.createFile(filePath, code);
+        return chalk.green(`✓ Created ${filePath}`);
+      } catch (error) {
+        return chalk.red(`Error: ${error}`);
+      }
+    }
+  },
+  {
+    name: 'generate',
+    description: 'Generate code (function, class, component)',
+    pattern: /^\/generate\s+(function|class|component|test)\s+(.+)$/,
+    handler: async (args: string[]) => {
+      const [type, description] = args;
+      const generator = await getCodeGenerator();
+      
+      try {
+        const code = await generator.generate({
+          type: type as any,
+          description
+        });
+        
+        return chalk.cyan('Generated code:\n\n') + code;
+      } catch (error) {
+        return chalk.red(`Error: ${error}`);
+      }
+    }
+  },
+  {
+    name: 'test-gen',
+    description: 'Generate tests for a file',
+    pattern: /^\/test-gen\s+(.+)$/,
+    handler: async (args: string[]) => {
+      const filePath = args[0];
+      const generator = await getCodeGenerator();
+      
+      try {
+        const result = await generator.generateTests(filePath);
+        return result;
+      } catch (error) {
+        return chalk.red(`Error: ${error}`);
+      }
+    }
+  },
+  {
+    name: 'refactor',
+    description: 'Refactor code in a file',
+    pattern: /^\/refactor\s+([^\s]+)\s+(.+)$/,
+    handler: async (args: string[]) => {
+      const [filePath, instruction] = args;
+      const generator = await getCodeGenerator();
+      
+      try {
+        const result = await generator.refactor(filePath, instruction);
+        return result;
+      } catch (error) {
+        return chalk.red(`Error: ${error}`);
+      }
+    }
+  },
+  // Git commands
+  {
+    name: 'git',
+    description: 'Git operations',
+    pattern: /^\/git\s+(status|diff|log|stash)(\s+(.+))?$/,
+    handler: async (args: string[]) => {
+      const [operation, _, params] = args;
+      const git = getGitIntegration();
+      
+      try {
+        switch (operation) {
+          case 'status':
+            return await git.status();
+          case 'diff':
+            return await git.diff(params);
+          case 'log':
+            const limit = params ? parseInt(params) : 10;
+            return await git.log(limit);
+          case 'stash':
+            return await git.stash(params as any || 'save');
+          default:
+            return chalk.red('Unknown git operation');
+        }
+      } catch (error) {
+        return chalk.red(`Error: ${error}`);
+      }
+    }
+  },
+  {
+    name: 'commit',
+    description: 'Commit changes',
+    pattern: /^\/commit\s+"([^"]+)"(\s+(.+))?$/,
+    handler: async (args: string[]) => {
+      const [message, _, files] = args;
+      const git = getGitIntegration();
+      
+      try {
+        const fileList = files ? files.split(' ') : undefined;
+        return await git.commit(message, fileList);
+      } catch (error) {
+        return chalk.red(`Error: ${error}`);
+      }
+    }
+  },
+  {
+    name: 'branch',
+    description: 'Create or list branches',
+    pattern: /^\/branch(\s+(.+))?$/,
+    handler: async (args: string[]) => {
+      const branchName = args[1];
+      const git = getGitIntegration();
+      
+      try {
+        return await git.branch(branchName);
+      } catch (error) {
+        return chalk.red(`Error: ${error}`);
+      }
+    }
+  },
+  {
+    name: 'modify',
+    description: 'Modify files based on natural language prompt',
+    pattern: /^\/modify\s+(.+)$/,
+    handler: async (args: string[]) => {
+      const prompt = args[0];
+      const generator = await getCodeGenerator();
+      
+      try {
+        // Propose changes based on the prompt
+        const plan = await generator.proposeChanges(prompt);
+        
+        // Apply changes with user confirmation
+        const result = await generator.applyChangesWithConfirmation(plan);
+        return result;
+      } catch (error) {
+        return chalk.red(`Error: ${error}`);
+      }
+    }
+  },
+  // Debugging commands
+  {
+    name: 'debug-error',
+    description: 'Analyze error and suggest fixes',
+    pattern: /^\/debug-error\s+(.+)$/s,
+    handler: async (args: string[]) => {
+      const error = args[0];
+      const debug = await getDebugAssistant();
+      
+      try {
+        return await debug.analyzeError(error);
+      } catch (error) {
+        return chalk.red(`Error: ${error}`);
+      }
+    }
+  },
+  {
+    name: 'debug-stack',
+    description: 'Analyze stack trace',
+    pattern: /^\/debug-stack\s+([\s\S]+)$/,
+    handler: async (args: string[]) => {
+      const stackTrace = args[0];
+      const debug = await getDebugAssistant();
+      
+      try {
+        return await debug.analyzeStackTrace(stackTrace);
+      } catch (error) {
+        return chalk.red(`Error: ${error}`);
+      }
+    }
+  },
+  {
+    name: 'profile',
+    description: 'Performance profiling suggestions',
+    pattern: /^\/profile\s+(.+)$/,
+    handler: async (args: string[]) => {
+      const filePath = args[0];
+      const debug = await getDebugAssistant();
+      
+      try {
+        return await debug.profilePerformance(filePath);
+      } catch (error) {
+        return chalk.red(`Error: ${error}`);
+      }
+    }
+  },
+  {
+    name: 'smells',
+    description: 'Detect code smells',
+    pattern: /^\/smells(?:\s+(.+))?$/,
+    handler: async (args: string[]) => {
+      const filePath = args[0];
+      const debug = await getDebugAssistant();
+      
+      try {
+        return await debug.detectCodeSmells(filePath);
+      } catch (error) {
+        return chalk.red(`Error: ${error}`);
+      }
+    }
   }
 ];
 
 export async function handleCommand(input: string, conversationHistory?: ChatMessage[], grokApi?: GrokAPI): Promise<string> {
+  // Ignore single-character confirmation-like inputs that might be stray
+  if (/^[yYnN]$/.test(input.trim())) {
+    return '[[IGNORE_INPUT]]';
+  }
+  
   // Check if input is a command
   for (const command of commands) {
     const match = input.match(command.pattern);
@@ -454,7 +724,53 @@ export async function handleCommand(input: string, conversationHistory?: ChatMes
     }
   }
 
-  // If not a command, treat as a question for Grok
+  // Use AI to detect intent for natural language requests
+  const intent = await detectUserIntent(input, grokApi);
+  
+  // Debug logging
+  if (process.env.DEBUG) {
+    console.log(chalk.dim(`[DEBUG] Detected intent: ${JSON.stringify(intent)}`));
+  }
+  
+  if (intent && intent.type !== 'question') {
+    const generator = await getCodeGenerator();
+    
+    try {
+      switch (intent.type) {
+        case 'modify':
+          const plan = await generator.proposeChanges(input);
+          return await generator.applyChangesWithConfirmation(plan);
+          
+        case 'create':
+          return await generator.handleFileCreation(input);
+          
+        case 'delete':
+          return await generator.handleFileDeletion(input);
+          
+        default:
+          // Fall through to regular question handling
+          break;
+      }
+    } catch (error) {
+      // Handle specific errors with helpful messages
+      if (error instanceof Error) {
+        if (error.message.includes('No relevant files found')) {
+          // Return a special error format that won't be sent to Grok
+          return '[[FILE_OPERATION_ERROR]]\n' +
+                 chalk.yellow('⚠️  ' + error.message + '\n\n') + 
+                 chalk.gray('Tip: Make sure to specify the file name in your request.\n' +
+                          'Examples:\n' +
+                          '  • "Remove the services section from index.html"\n' +
+                          '  • "Update the header in App.js"\n' +
+                          '  • "Change colors in styles.css"');
+        }
+        return '[[FILE_OPERATION_ERROR]]\n' + chalk.red(`❌ ${error.message}`);
+      }
+      return '[[FILE_OPERATION_ERROR]]\n' + chalk.red(`❌ An error occurred: ${error}`);
+    }
+  }
+
+  // If not a command or modification request, treat as a question for Grok
   // Get context from both knowledge base and codebase
   const knowledgeContext = await knowledgeBase.getContext(input);
   const indexer = await getCodeIndexer();
@@ -572,3 +888,115 @@ ${combinedContext}`;
 export function getCommands(): Command[] {
   return commands;
 }
+
+interface UserIntent {
+  type: 'create' | 'modify' | 'delete' | 'question';
+  confidence: number;
+  details?: string;
+}
+
+async function detectUserIntent(input: string, grokApi?: GrokAPI): Promise<UserIntent> {
+  const api = grokApi || getGrokApi();
+  
+  // Debug logging
+  if (process.env.DEBUG) {
+    console.log(chalk.dim(`[DEBUG] Analyzing intent for: "${input}"`));
+  }
+  
+  // Quick check for obvious questions (but not if they contain action words)
+  if (input.match(/^(what|where|when|who|why|how|is|are|does|do)\s/i) &&
+      !input.match(/\b(create|make|generate|delete|remove|change|modify|update|build|write)\b/i)) {
+    if (process.env.DEBUG) {
+      console.log(chalk.dim(`[DEBUG] Quick match: question`));
+    }
+    return { type: 'question', confidence: 0.9 };
+  }
+  
+  const intentPrompt = `Analyze this user input and determine their intent: "${input}"
+
+You MUST respond with ONLY a JSON object (no other text) in this format:
+{
+  "type": "create" | "modify" | "delete" | "question",
+  "confidence": 0.0 to 1.0,
+  "details": "brief explanation"
+}
+
+Intent types:
+- "create": User wants to create new files, components, or code
+- "modify": User wants to change, update, refactor existing code, or remove/add content within files
+- "delete": User wants to remove or delete entire files from the filesystem
+- "question": User is asking for information or help
+
+Examples:
+Input: "Can you create a boiler template index.html for me?"
+Output: {"type": "create", "confidence": 0.95, "details": "User wants to create an HTML boilerplate file"}
+
+Input: "Change all the colors to dark theme"
+Output: {"type": "modify", "confidence": 0.9, "details": "User wants to modify colors/theme"}
+
+Input: "Remove the about section from index.html"
+Output: {"type": "modify", "confidence": 0.95, "details": "User wants to remove content from within a file"}
+
+Input: "Delete the header component from App.js"
+Output: {"type": "modify", "confidence": 0.9, "details": "User wants to remove code from within a file"}
+
+Input: "What is the purpose of this function?"
+Output: {"type": "question", "confidence": 0.95, "details": "User asking for information"}
+
+Input: "Delete all the old test files"
+Output: {"type": "delete", "confidence": 0.9, "details": "User wants to delete entire files"}
+
+Input: "Remove index.html"
+Output: {"type": "delete", "confidence": 0.95, "details": "User wants to delete the file"}`;
+
+  try {
+    const response = await api.askQuestion(intentPrompt);
+    
+    if (process.env.DEBUG) {
+      console.log(chalk.dim(`[DEBUG] AI response: ${response.substring(0, 200)}...`));
+    }
+    
+    // Try to parse JSON response
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const intent = JSON.parse(jsonMatch[0]);
+      if (process.env.DEBUG) {
+        console.log(chalk.dim(`[DEBUG] Parsed intent: ${JSON.stringify(intent)}`));
+      }
+      return intent;
+    }
+  } catch (error) {
+    if (process.env.DEBUG) {
+      console.log(chalk.dim(`[DEBUG] AI intent detection failed, using fallback`));
+    }
+    // If AI fails, fall back to simple pattern matching as last resort
+    if (input.match(/\b(create|make|generate|add|write|new)\b/i) && 
+        input.match(/\b(file|component|class|function|page|template|boiler)/i)) {
+      return { type: 'create', confidence: 0.7 };
+    }
+    
+    // Check if it's about removing/deleting content FROM a file (modify) vs removing a file entirely (delete)
+    if (input.match(/\b(remove|delete|drop|eliminate|clear)\b/i)) {
+      // If it mentions "from" or has a specific section/component name, it's likely a modification
+      if (input.match(/\bfrom\b/i) || 
+          input.match(/\b(section|component|function|class|method|div|element|block|code|part)\b/i)) {
+        return { type: 'modify', confidence: 0.7 };
+      }
+      // If it talks about files/folders as whole units, it's deletion
+      if (input.match(/\b(file|files|folder|directory|all|old|unused|deprecated)\b/i)) {
+        return { type: 'delete', confidence: 0.7 };
+      }
+      // Default to modify for safety (less destructive)
+      return { type: 'modify', confidence: 0.6 };
+    }
+    
+    if (input.match(/\b(change|modify|update|edit|refactor|fix|improve|add|replace)\b/i)) {
+      return { type: 'modify', confidence: 0.7 };
+    }
+  }
+  
+  // Default to question
+  return { type: 'question', confidence: 0.5 };
+}
+
+// Legacy regex functions removed - now using AI-based intent detection
